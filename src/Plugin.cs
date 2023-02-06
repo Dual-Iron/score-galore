@@ -38,7 +38,7 @@ sealed class Plugin : BaseUnityPlugin
     {
         orig(self, killer, victim);
 
-        if (killer is Player) {
+        if (killer is Player && CreatureSymbol.DoesCreatureEarnATrophy(victim.Template.type)) {
             GetCounter(self.room.game)?.AddKill(victim);
         }
     }
@@ -78,9 +78,9 @@ sealed class Plugin : BaseUnityPlugin
         if (GetCounter(self.game) is ScoreCounter counter) {
             int minute = self.playerSessionRecords[0].time / 2400;
 
-            if (counter.lastMinute < minute) {
-                counter.AddBonus(new() { Add = counter.lastMinute - minute, Color = new(0.7f, 0.7f, 0.7f) });
-                counter.lastMinute = minute;
+            if (counter.LastMinute < minute) {
+                counter.AddBonus(new() { Add = counter.LastMinute - minute, Color = new(0.7f, 0.7f, 0.7f) });
+                counter.LastMinute = minute;
             }
         }
     }

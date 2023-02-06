@@ -13,10 +13,12 @@ sealed class ScoreCounter : HUD.HudPart
     {
         public int Add;
         public Color Color;
+        public FLabel label;
     }
 
     public int Score;
-    public int AverageScore = 10;
+    public int TargetScore = 10;
+    public int LastMinute;
 
     readonly int[] killScores;
     readonly List<ScoreBonus> bonuses = new();
@@ -24,21 +26,23 @@ sealed class ScoreCounter : HUD.HudPart
     Vector2 pos;
     Vector2 lastPos;
 
-    public FLabel scoreText;
-    public FSprite darkGradient;
-    public FSprite lightGradient;
-    public float alpha;
-    public float lastAlpha;
-    public float bump;
-    public float lastBump;
-    public int remainVisible;
-    public int lastMinute;
+    FLabel scoreText;
+    FSprite darkGradient;
+    FSprite lightGradient;
+    float alpha;
+    float lastAlpha;
+    float bump;
+    float lastBump;
+    int remainVisible;
+    int clock;
 
-    public int incrementDelay;
-    public int incrementCounter;
+    int incrementDelay;
+    int incrementCounter;
 
     public ScoreCounter(HUD.HUD hud) : base(hud)
     {
+        // TODO set TargetScore to average score
+
         pos = new Vector2(hud.rainWorld.screenSize.x - 20f + 0.01f, 20.01f);
 
         hud.fContainers[0].AddChild(scoreText = new FLabel(Custom.GetDisplayFont(), "0"));
@@ -60,11 +64,25 @@ sealed class ScoreCounter : HUD.HudPart
         killScores[(int)MultiplayerUnlocks.SandboxUnlockID.Slugcat] = 1;
     }
 
-    private Color ScoreTextColor => new HSLColor(Custom.LerpMap(Score, 0f, AverageScore * 2f, 0f, 240f / 360f), 0.75f, 0.75f).rgb;
+    private Color ScoreTextColor() => new HSLColor(Custom.LerpMap(Score, 0f, TargetScore * 2f, 0f, 240f / 360f), 0.75f, 0.75f).rgb;
+
+    private string FmtAdd(int add) => add > 0 ? "+" + add : add.ToString();
+
+    private void RemoveCurrentBonus()
+    {
+        hud.fadeCircles.Add(new HUD.FadeCircle(hud, 10f, 10f, 0.82f, 30f, 4f, pos, hud.fContainers[1]));
+        hud.PlaySound(SoundID.HUD_Food_Meter_Fill_Fade_Circle);
+        bonuses[0].label.RemoveFromContainer();
+        bonuses.RemoveAt(0);
+    }
 
     public void AddBonus(ScoreBonus bonus)
     {
         if (bonus.Add == 0) return;
+
+        incrementDelay = 0;
+        incrementCounter = 0;
+        bump = 1f;
 
         if (bonuses.FirstOrDefault(b => b.Color == bonus.Color) is ScoreBonus current) {
             current.Add += bonus.Add;
@@ -100,10 +118,12 @@ sealed class ScoreCounter : HUD.HudPart
 
         bump = Custom.LerpAndTick(bump, 0f, 0.04f, 0.033333335f);
 
-        if (bonuses.FirstOrDefault() is ScoreBonus bonus) {
+        clock++;
+
+        if (bonuses.Count > 0) {
             alpha = Custom.LerpAndTick(alpha, remainVisible > 0 ? 1f : Mathf.InverseLerp(10f, 50f, incrementDelay), 0.06f, 0.033333335f);
 
-            Update(bonus);
+            Update(bonuses[0]);
         }
         else {
             alpha = Custom.LerpAndTick(alpha, remainVisible > 0 ? 1 : 0, 1f / 25f, 1f / 60f);
@@ -134,15 +154,14 @@ sealed class ScoreCounter : HUD.HudPart
         bump = 1f;
         remainVisible = 20;
 
-        Score += Math.Sign(bonus.Add);
-        bonus.Add -= Math.Sign(bonus.Add);
+        int add = Math.Sign(bonus.Add);
+
+        Score += add;
         scoreText.text = Score.ToString();
 
+        bonus.Add -= add;
         if (bonus.Add == 0) {
-            hud.fadeCircles.Add(new HUD.FadeCircle(hud, 10f, 10f, 0.82f, 30f, 4f, pos, hud.fContainers[1]));
-            hud.PlaySound(SoundID.HUD_Food_Meter_Fill_Fade_Circle);
-
-            bonuses.Remove(bonus);
+            RemoveCurrentBonus();
         }
     }
 
@@ -150,8 +169,8 @@ sealed class ScoreCounter : HUD.HudPart
     {
         base.Draw(timeStacker);
 
-        scoreText.color = ScoreTextColor;
-        lightGradient.color = ScoreTextColor;
+        scoreText.color = ScoreTextColor();
+        lightGradient.color = ScoreTextColor();
 
         Vector2 pos = Vector2.Lerp(lastPos, this.pos, timeStacker);
         scoreText.x = pos.x;
@@ -171,6 +190,23 @@ sealed class ScoreCounter : HUD.HudPart
         lightGradient.y = pos.y;
         lightGradient.scale = Mathf.Lerp(40f, 50f, Mathf.Pow(bump, 2f)) / 16f;
         lightGradient.alpha = bump * 0.2f;
+
+        int i = 0;
+        foreach (var bonus in bonuses) {
+            i++;
+
+            if (bonus.label == null) {
+                bonus.label = new(Custom.GetDisplayFont(), "");
+                hud.fContainers[0].AddChild(bonus.label);
+            }
+            pos.x -= 30;
+            bonus.label.scale = 0.8f;
+            bonus.label.text = FmtAdd(bonus.Add);
+            bonus.label.color = bonus.Color;
+            bonus.label.alpha = Mathf.Min(alpha, 0.5f + 0.5f * Mathf.Sign(i + clock / Mathf.PI / 40f));
+            bonus.label.x = pos.x;
+            bonus.label.y = pos.y;
+        }
     }
 
     public override void ClearSprites()

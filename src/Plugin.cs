@@ -122,11 +122,11 @@ sealed class Plugin : BaseUnityPlugin
         if (saveState == null) {
             return 0;
         }
-        int numerator = GetTotalScore(saveState);
         int denominator = saveState.deathPersistentSaveData.survives + saveState.deathPersistentSaveData.deaths + saveState.deathPersistentSaveData.quits;
         if (denominator == 0) {
             return 10;
         }
+        int numerator = GetTotalScore(saveState);
         return Mathf.RoundToInt((float)numerator / denominator);
     }
 
@@ -152,6 +152,7 @@ sealed class Plugin : BaseUnityPlugin
         // -- View statistics screen --
         On.Menu.SlugcatSelectMenu.ctor += SlugcatSelectMenu_ctor;
         On.Menu.SlugcatSelectMenu.StartGame += SlugcatSelectMenu_StartGame;
+        On.Menu.SlugcatSelectMenu.ComingFromRedsStatistics += SlugcatSelectMenu_ComingFromRedsStatistics;
         On.Menu.StoryGameStatisticsScreen.AddBkgIllustration += StoryGameStatisticsScreen_AddBkgIllustration;
     }
 
@@ -403,13 +404,21 @@ sealed class Plugin : BaseUnityPlugin
         }
     }
 
+    private void SlugcatSelectMenu_ComingFromRedsStatistics(On.Menu.SlugcatSelectMenu.orig_ComingFromRedsStatistics orig, SlugcatSelectMenu self)
+    {
+        // Fixes a vanilla bug...
+        orig(self);
+        self.redIsDead = self.saveGameData.TryGetValue(SlugcatStats.Name.Red, out var s) && s != null && (s.redsDeath && s.cycle >= RedsIllness.RedsCycles(s.redsExtraCycles) || s.ascended);
+    }
+
     private void StoryGameStatisticsScreen_AddBkgIllustration(On.Menu.StoryGameStatisticsScreen.orig_AddBkgIllustration orig, StoryGameStatisticsScreen self)
     {
         if (viewStats == null) {
             orig(self);
             return;
         }
-
+        
+        // Fix background illustration for living characters
         SlugcatSelectMenu.SaveGameData saveGameData = SlugcatSelectMenu.MineForSaveData(self.manager, viewStats);
 
         if (saveGameData != null && saveGameData.ascended && (!ModManager.MSC || RainWorld.lastActiveSaveSlot != MoreSlugcatsEnums.SlugcatStatsName.Saint)) {

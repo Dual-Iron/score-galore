@@ -17,8 +17,8 @@ sealed class ScoreTicker : PositionedMenuObject
     readonly MenuLabel numberLabel;
     readonly MenuLabel nameLabel;
 
-    float showFlash;
-    float lastShowFlash;
+    float flash;
+    float lastFlash;
     bool visible;
 
     public ScoreTicker(MenuObject owner, Vector2 pos, string name) : base(owner.menu, owner, pos)
@@ -44,15 +44,14 @@ sealed class ScoreTicker : PositionedMenuObject
     {
         base.Update();
 
-        lastShowFlash = showFlash;
-        showFlash = Custom.LerpAndTick(showFlash, 0f, 0.08f, 0.1f);
+        lastFlash = flash;
+        flash = Custom.LerpAndTick(flash, 0f, 0.05f, 0.01f);
 
         animationClock += RWInput.PlayerInput(0, menu.manager.rainWorld).mp ? 4 : 1;
 
         if (animationClock > 0 && !visible) {
             visible = true;
-            showFlash = 1f;
-            lastShowFlash = 1f;
+            flash = 1f;
             UpdateText();
             menu.PlaySound(SoundID.UI_Multiplayer_Player_Result_Box_Kill_Tick);
         }
@@ -64,14 +63,13 @@ sealed class ScoreTicker : PositionedMenuObject
 
     public void Tick()
     {
-        if (start == end) return;
+        if (start == end) {
+            return;
+        }
 
-        if (Mathf.Abs(start - end) < 15)
-            start += Math.Sign(end - start);
-        else
-            start += Math.Sign(end - start) * 10;
+        start += Math.Sign(end - start);
 
-        showFlash = Mathf.Max(0.75f, showFlash);
+        flash = Mathf.Max(0.75f, flash);
 
         UpdateText();
 
@@ -82,11 +80,10 @@ sealed class ScoreTicker : PositionedMenuObject
     {
         base.GrafUpdate(timeStacker);
 
-        Color grey = Menu.Menu.MenuRGB(Menu.Menu.MenuColors.MediumGrey);
-        float flash = Mathf.Lerp(lastShowFlash, showFlash, timeStacker);
+        float flash = Mathf.Lerp(lastFlash, this.flash, timeStacker);
 
         Color numberColor = Color.Lerp(this.numberColor, Menu.Menu.MenuRGB(Menu.Menu.MenuColors.White), Mathf.Pow(flash, 2f));
-        Color textColor = Color.Lerp(grey, Menu.Menu.MenuRGB(Menu.Menu.MenuColors.White), Mathf.Pow(flash, 3f));
+        Color textColor = Color.Lerp(Menu.Menu.MenuRGB(Menu.Menu.MenuColors.MediumGrey), Menu.Menu.MenuRGB(Menu.Menu.MenuColors.White), Mathf.Pow(flash, 3f));
 
         numberLabel.label.isVisible = visible;
         nameLabel.label.isVisible = visible;

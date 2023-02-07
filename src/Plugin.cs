@@ -58,6 +58,10 @@ sealed class Plugin : BaseUnityPlugin
 
     public static int KillScore(IconSymbol.IconSymbolData iconData)
     {
+        if (!CreatureSymbol.DoesCreatureEarnATrophy(iconData.critType)) {
+            return 0;
+        }
+
         var s = (StoryGameStatisticsScreen)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(StoryGameStatisticsScreen));
         var score = s.GetNonSandboxKillscore(iconData.critType);
 
@@ -68,7 +72,7 @@ sealed class Plugin : BaseUnityPlugin
         return score;
     }
 
-    public static Color ScoreTextColor(int score, int targetScore) => new HSLColor(Custom.LerpMap(score, 0f, targetScore, 0f, 200f / 360f), 0.7f, 0.7f).rgb;
+    public static Color ScoreTextColor(int score, int targetScore) => new HSLColor(Custom.LerpMap(score, 0f, targetScore * 2f, 0f, 240f / 360f), 0.7f, 0.7f).rgb;
 
     private ScoreCounter GetCounter(RainWorldGame game)
     {
@@ -80,7 +84,7 @@ sealed class Plugin : BaseUnityPlugin
         if (saveState == null) {
             return 0;
         }
-        return saveState.totFood + saveState.cycleNumber * 10 + saveState.kills.Sum(kvp => KillScore(kvp.Key) * kvp.Value)
+        return saveState.totFood + saveState.deathPersistentSaveData.survives * 10 + saveState.kills.Sum(kvp => KillScore(kvp.Key) * kvp.Value)
             - saveState.deathPersistentSaveData.deaths * 3 
             - saveState.deathPersistentSaveData.quits * 3
             - saveState.totTime / 60;
@@ -92,7 +96,7 @@ sealed class Plugin : BaseUnityPlugin
             return 0;
         }
         int numerator = GetTotalScore(saveState);
-        int denominator = saveState.cycleNumber + saveState.deathPersistentSaveData.deaths + saveState.deathPersistentSaveData.quits;
+        int denominator = saveState.deathPersistentSaveData.survives + saveState.deathPersistentSaveData.deaths + saveState.deathPersistentSaveData.quits;
         return Mathf.RoundToInt((float)numerator / denominator);
     }
 
@@ -130,8 +134,10 @@ sealed class Plugin : BaseUnityPlugin
     {
         orig(self, killer, victim);
 
-        if (killer is Player && CreatureSymbol.DoesCreatureEarnATrophy(victim.Template.type)) {
-            GetCounter(self.room.game)?.AddKill(victim);
+        if (killer is Player && GetCounter(self.room.game) is ScoreCounter counter) {
+            IconSymbol.IconSymbolData iconData = CreatureSymbol.SymbolDataFromCreature(victim.abstractCreature);
+
+            counter.AddBonus(new() { Add = KillScore(iconData), Color = CreatureSymbol.ColorOfCreature(iconData) });
         }
     }
 
@@ -223,7 +229,7 @@ sealed class Plugin : BaseUnityPlugin
     private void SlugcatSelectMenu_StartGame(On.Menu.SlugcatSelectMenu.orig_StartGame orig, SlugcatSelectMenu self, SlugcatStats.Name storyGameCharacter)
     {
         StatCheckBox stats = self.pages[0].subObjects.OfType<StatCheckBox>().FirstOrDefault();
-        if (stats != null && stats.isChecked && self.manager.rainWorld.progression.IsThereASavedGame(storyGameCharacter)) {
+        if (stats != null && stats.Checked && self.manager.rainWorld.progression.IsThereASavedGame(storyGameCharacter)) {
             SetJollyColors(self);
 
             self.manager.arenaSitting = null;

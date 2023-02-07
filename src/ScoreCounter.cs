@@ -81,16 +81,6 @@ sealed class ScoreCounter : HUD.HudPart
         }
     }
 
-    public void AddKill(Creature victim)
-    {
-        IconSymbol.IconSymbolData iconData = CreatureSymbol.SymbolDataFromCreature(victim.abstractCreature);
-
-        int score = Plugin.KillScore(iconData);
-        if (score != 0) {
-            bonuses.Add(new() { Add = score, Color = CreatureSymbol.ColorOfCreature(iconData) });
-        }
-    }
-
     public override void Update()
     {
         base.Update();

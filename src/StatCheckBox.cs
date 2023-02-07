@@ -4,11 +4,16 @@ namespace ScoreGalore;
 
 sealed class StatCheckBox : CheckBox
 {
+    struct Simple : IOwnCheckBox
+    {
+        bool on;
+        bool IOwnCheckBox.GetChecked(CheckBox box) => on;
+        void IOwnCheckBox.SetChecked(CheckBox box, bool c) => on = c;
+    }
+
     private readonly new SlugcatSelectMenu menu;
 
-    public bool isChecked;
-
-    public StatCheckBox(SlugcatSelectMenu menu, float posX) : base(menu, menu.pages[0], menu, new(posX, -30), 40f, RWCustom.Custom.ToTitleCase(menu.Translate("STATISTICS").ToLower()), "", true)
+    public StatCheckBox(SlugcatSelectMenu menu, float posX) : base(menu, menu.pages[0], new Simple(), new(posX, -30), 40f, RWCustom.Custom.ToTitleCase(menu.Translate("STATISTICS").ToLower()), "", true)
     {
         this.menu = menu;
     }
@@ -17,9 +22,7 @@ sealed class StatCheckBox : CheckBox
     {
         base.Clicked();
 
-        isChecked = !isChecked;
-
-        if (isChecked) {
+        if (Checked) {
             menu.startButton.fillTime = 40f;
             menu.startButton.menuLabel.text = menu.Translate("STATISTICS");
         }
@@ -30,19 +33,18 @@ sealed class StatCheckBox : CheckBox
 
     public override void Update()
     {
-        base.Update();
-
         SlugcatStats.Name name = menu.colorFromIndex(menu.slugcatPageIndex);
 
-        bool available = menu.saveGameData[name] is SlugcatSelectMenu.SaveGameData data && !(name == SlugcatStats.Name.Red && data.redsDeath);
+        bool hidden = menu.saveGameData[name] == null || name == SlugcatStats.Name.Red && menu.redIsDead;
 
-        GetButtonBehavior.greyedOut = !available;
-        selectable = available;
-        pos.y = available ? 30 : -30;
+        GetButtonBehavior.greyedOut = hidden || menu.restartChecked;
+        selectable = !(hidden || menu.restartChecked);
+        pos.y = hidden ? -30 : 30;
 
-        if (isChecked) {
-            menu.restartChecked = false;
-            menu.restartCheckbox.GetButtonBehavior.greyedOut = true;
+        base.Update();
+
+        if (menu.restartChecked) {
+            Checked = false;
         }
     }
 }

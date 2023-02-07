@@ -88,7 +88,7 @@ sealed class ScoreTicker : PositionedMenuObject
         numberLabel.label.isVisible = visible;
         nameLabel.label.isVisible = visible;
 
-        numberLabel.label.color = numberColor == default ? textColor : numberColor;
+        numberLabel.label.color = this.numberColor == default ? textColor : numberColor;
         nameLabel.label.color = textColor;
     }
 }

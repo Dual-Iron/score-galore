@@ -72,12 +72,17 @@ sealed class Plugin : BaseUnityPlugin
         return score;
     }
 
-    public static Color ScoreTextColor(int score, int targetScore) => new HSLColor(Custom.LerpMap(score, 0f, targetScore * 2f, 0f, 240f / 360f), 0.7f, 0.7f).rgb;
+    public static Color ScoreTextColor(int score, int targetScore)
+    {
+        return new HSLColor(Custom.LerpMap(score, 0f, targetScore * 2f, 0f, 240f / 360f), 0.7f, 0.7f).rgb;
+    }
 
     private ScoreCounter GetCounter(RainWorldGame game)
     {
         return game?.session is StoryGameSession ? game.cameras[0]?.hud?.parts.OfType<ScoreCounter>().FirstOrDefault() : null;
     }
+
+    private int MSC(int score) => ModManager.MSC ? score : 0;
 
     private int GetTotalScore(SaveState saveState)
     {
@@ -85,6 +90,7 @@ sealed class Plugin : BaseUnityPlugin
             return 0;
         }
         return saveState.totFood + saveState.deathPersistentSaveData.survives * 10 + saveState.kills.Sum(kvp => KillScore(kvp.Key) * kvp.Value)
+            + MSC(saveState.deathPersistentSaveData.friendsSaved) * 15
             - saveState.deathPersistentSaveData.deaths * 3 
             - saveState.deathPersistentSaveData.quits * 3
             - saveState.totTime / 60;
@@ -108,6 +114,7 @@ sealed class Plugin : BaseUnityPlugin
         On.Player.AddFood += Player_AddFood;
         On.Player.SubtractFood += Player_SubtractFood;
         On.StoryGameSession.TimeTick += StoryGameSession_TimeTick;
+        On.SaveState.SessionEnded += SaveState_SessionEnded;
 
         // Sleep screen score trackers
         On.Menu.SleepAndDeathScreen.GetDataFromGame += SleepAndDeathScreen_GetDataFromGame;
@@ -148,7 +155,7 @@ sealed class Plugin : BaseUnityPlugin
             orig(self, add);
             int after = story.saveState.totFood;
 
-            GetCounter(story.game)?.AddBonus(new() { Add = after - before, Color = Color.white });
+            GetCounter(story.game)?.AddBonus(new() { Add = after - before, Color = Menu.Menu.MenuRGB(Menu.Menu.MenuColors.MediumGrey) });
         }
         else {
             orig(self, add);
@@ -162,7 +169,7 @@ sealed class Plugin : BaseUnityPlugin
             orig(self, sub);
             int after = story.saveState.totFood;
 
-            GetCounter(story.game)?.AddBonus(new() { Add = after - before, Color = new UnityEngine.Color(0.40f, 0.55f, 0.12f) });
+            GetCounter(story.game)?.AddBonus(new() { Add = after - before, Color = new Color(0.61f, 0.83f, 0.16f) });
         }
         else {
             orig(self, sub);
@@ -176,9 +183,18 @@ sealed class Plugin : BaseUnityPlugin
         int minute = self.playerSessionRecords[0].time / 2400;
 
         if (currentCycleTime < minute && GetCounter(self.game) is ScoreCounter counter) {
-            counter.AddBonus(new() { Add = currentCycleTime - minute, Color = new(0.7f, 0.7f, 0.7f) });
+            counter.AddBonus(new() { Add = currentCycleTime - minute, Color = new(0.66f, 0.6f, 0.6f) });
             currentCycleTime = minute;
         }
+    }
+
+    private void SaveState_SessionEnded(On.SaveState.orig_SessionEnded orig, SaveState self, RainWorldGame game, bool survived, bool newMalnourished)
+    {
+        int friendsSavedBefore = self.deathPersistentSaveData.friendsSaved;
+        orig(self, game, survived, newMalnourished);
+        int friendsSavedAfter = self.deathPersistentSaveData.friendsSaved;
+
+        CurrentCycleScore += 15 * MSC(friendsSavedAfter - friendsSavedBefore);
     }
 
     private void SleepAndDeathScreen_GetDataFromGame(On.Menu.SleepAndDeathScreen.orig_GetDataFromGame orig, SleepAndDeathScreen self, KarmaLadderScreen.SleepDeathScreenDataPackage package)

@@ -56,17 +56,13 @@ sealed class ScoreTicker : PositionedMenuObject
             menu.PlaySound(SoundID.UI_Multiplayer_Player_Result_Box_Kill_Tick);
         }
 
-        if (animationClock > 12) {
+        if (animationClock > 40 && start != end && (Math.Abs(end - start) > 10 || animationClock % 4 == 0)) {
             Tick();
         }
     }
 
     public void Tick()
     {
-        if (start == end) {
-            return;
-        }
-
         start += Math.Sign(end - start);
 
         flash = Mathf.Max(0.75f, flash);

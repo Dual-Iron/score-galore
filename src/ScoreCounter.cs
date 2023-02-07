@@ -10,9 +10,20 @@ sealed class ScoreCounter : HUD.HudPart
 {
     public sealed class ScoreBonus
     {
+        public readonly int Initial;
+        public readonly bool Stacks;
+
         public int Add;
         public Color Color;
         public FLabel label;
+
+        public ScoreBonus(int add, Color color, bool stacks = false)
+        {
+            Add = add;
+            Initial = add;
+            Color = color;
+            Stacks = stacks;
+        }
     }
 
     public int Score {
@@ -67,7 +78,13 @@ sealed class ScoreCounter : HUD.HudPart
     {
         incrementDelay = 0;
         incrementCounter = 0;
-        bonuses.Add(bonus);
+
+        if (bonus.Stacks && bonuses.FirstOrDefault(b => b.Color == bonus.Color && b.Stacks) is ScoreBonus stackable) {
+            stackable.Add += bonus.Add;
+        }
+        else {
+            bonuses.Add(bonus);
+        }
     }
 
     public override void Update()
@@ -164,7 +181,13 @@ sealed class ScoreCounter : HUD.HudPart
                 bonus.label = new(Custom.GetDisplayFont(), "");
                 hud.fContainers[0].AddChild(bonus.label);
             }
-            pos.x -= 30;
+            pos.x -= 28;
+            if (bonus.Initial > 9) {
+                pos.x -= 4;
+            }
+            if (bonus.Initial > 99) {
+                pos.x -= 6;
+            }
             bonus.label.scale = 0.8f;
             bonus.label.text = Plugin.FmtAdd(bonus.Add);
             bonus.label.color = bonus.Color;

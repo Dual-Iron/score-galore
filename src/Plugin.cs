@@ -78,12 +78,12 @@ sealed class Plugin : BaseUnityPlugin
         return new HSLColor(Custom.LerpMap(score, 0f, targetScore * 2f, 0f, 240f / 360f), 0.7f, 0.7f).rgb;
     }
 
-    private void AddCurrentCycleScore(RainWorldGame game, int score, Color color)
+    private void AddCurrentCycleScore(RainWorldGame game, int score, Color color, bool stacks = false)
     {
         if (score == 0) return;
 
         if (game?.cameras[0]?.hud?.parts.OfType<ScoreCounter>().FirstOrDefault() is ScoreCounter counter) {
-            counter.AddBonus(new() { Add = score, Color = color });
+            counter.AddBonus(new(score, color, stacks));
         }
         else {
             CurrentCycleScore += score;
@@ -137,7 +137,8 @@ sealed class Plugin : BaseUnityPlugin
 
         // Track killing, eating, vomiting, passage of time, friends
         On.SocialEventRecognizer.Killing += CountKills;
-        On.Player.AddFood += CountEatAndGourd;
+        On.PlayerSessionRecord.AddEat += CountGourd;
+        On.Player.AddFood += CountEat;
         On.Player.SubtractFood += CountVomit;
         On.StoryGameSession.TimeTick += CountTime;
         On.SaveState.SessionEnded += CountFriendsSaved;
@@ -179,26 +180,41 @@ sealed class Plugin : BaseUnityPlugin
         }
     }
 
-    private void CountEatAndGourd(On.Player.orig_AddFood orig, Player self, int add)
+    private void CountGourd(On.PlayerSessionRecord.orig_AddEat orig, PlayerSessionRecord self, PhysicalObject eatenObject)
     {
-        if (self.abstractCreature.world.game.session is StoryGameSession story) {
-            var s = story.saveState;
+        if (eatenObject.room.game.session is StoryGameSession s && s.saveState.deathPersistentSaveData.winState.GetTracker(MoreSlugcatsEnums.EndgameID.Gourmand, false) is WinState.GourFeastTracker g) {
+            for (int i = 0; i < g.currentCycleProgress.Length - 1; i++) {
+                g.currentCycleProgress[i] = 1;
+            }
 
-            bool gourdBefore = s.deathPersistentSaveData.winState.GetTracker(MoreSlugcatsEnums.EndgameID.Gourmand, false) is WinState.GourFeastTracker g && g.currentCycleProgress.All(n => n > 0);
-            int before = story.saveState.totFood;
-            orig(self, add);
-            int after = story.saveState.totFood;
+            bool gourdBefore = g.currentCycleProgress.All(n => n > 0);
 
-            AddCurrentCycleScore(story.game, after - before, Menu.Menu.MenuRGB(Menu.Menu.MenuColors.MediumGrey));
+            orig(self, eatenObject);
 
             // "Food quest completed"
-            if (!gourdBefore && s.deathPersistentSaveData.winState.GetTracker(MoreSlugcatsEnums.EndgameID.Gourmand, false) is WinState.GourFeastTracker g2 && g2.currentCycleProgress.All(n => n > 0)) {
-                AddCurrentCycleScore(story.game, MSC(300), new(0.78f, 0.64f, 0.51f));
+            if (!gourdBefore && g.currentCycleProgress.All(n => n > 0)) {
+                AddCurrentCycleScore(s.game, MSC(300), new(0.78f, 0.64f, 0.51f));
             }
         }
         else {
-            orig(self, add);
+            orig(self, eatenObject);
         }
+    }
+
+    private void CountEat(On.Player.orig_AddFood orig, Player self, int add)
+    {
+        if (self.abstractCreature.world.game.session is not StoryGameSession story) {
+            orig(self, add);
+            return;
+        }
+
+        int before = story.saveState.totFood;
+
+        orig(self, add);
+
+        int after = story.saveState.totFood;
+
+        AddCurrentCycleScore(story.game, after - before, Menu.Menu.MenuRGB(Menu.Menu.MenuColors.MediumGrey), stacks: true);
     }
 
     private void CountVomit(On.Player.orig_SubtractFood orig, Player self, int sub)
@@ -208,7 +224,7 @@ sealed class Plugin : BaseUnityPlugin
             orig(self, sub);
             int after = story.saveState.totFood;
 
-            AddCurrentCycleScore(story.game, after - before, new Color(0.61f, 0.83f, 0.16f));
+            AddCurrentCycleScore(story.game, after - before, new Color(0.61f, 0.83f, 0.16f), stacks: true);
         }
         else {
             orig(self, sub);
@@ -222,7 +238,7 @@ sealed class Plugin : BaseUnityPlugin
         int minute = self.playerSessionRecords[0].time / 2400;
 
         if (currentCycleTime < minute) {
-            AddCurrentCycleScore(self.game, currentCycleTime - minute, new(0.66f, 0.6f, 0.6f));
+            AddCurrentCycleScore(self.game, currentCycleTime - minute, new(0.66f, 0.6f, 0.6f), stacks: true);
             currentCycleTime = minute;
         }
     }
@@ -334,13 +350,13 @@ sealed class Plugin : BaseUnityPlugin
         self.pages[0].subObjects.Add(new ScoreTicker(self.pages[0], topLeft - new Vector2(0, 30), self.Translate("Total :")) {
             start = total - current,
             end = total,
-            animationClock = -40,
+            animationClock = -60,
         });
 
         self.pages[0].subObjects.Add(new ScoreTicker(self.pages[0], topLeft - new Vector2(0, 60), self.Translate("Average :")) {
             start = oldAverage,
             end = newAverage,
-            animationClock = -80,
+            animationClock = -120,
         });
     }
 

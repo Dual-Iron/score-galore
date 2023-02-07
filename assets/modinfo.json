@@ -3,7 +3,7 @@
   "name": "Score Galore",
   "version": "1.0.0",
   "authors": "Dual",
-  "description": "Gives a plethora of information about your score in real time, with extra information at the end of each cycle. View the statistics screen from the main menu at any time. Might remind you of Score Popups and Score Tracker from RainDB.<LINE><LINE>Code at github.com/Dual-Iron/score-galore",
+  "description": "Gauge your performance better than ever! Score Galore displays your score in-game and after each cycle. You can also view the statistics screen at your leisure. Inspired by Score Popups and Score Tracker from RainDB.<LINE><LINE>Code at github.com/Dual-Iron/score-galore",
   "requirements": [],
   "requirements_names": [],
   "checksum_override_version": false

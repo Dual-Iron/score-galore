@@ -8,22 +8,16 @@ namespace ScoreGalore;
 
 sealed class ScoreCounter : HUD.HudPart
 {
-    public sealed class ScoreBonus
+    sealed class ScoreBonus
     {
-        public readonly int Initial;
-        public readonly bool Stacks;
+        public int Initial;
 
         public int Add;
+        public bool Stacks;
         public Color Color;
-        public FLabel label;
 
-        public ScoreBonus(int add, Color color, bool stacks = false)
-        {
-            Add = add;
-            Initial = add;
-            Color = color;
-            Stacks = stacks;
-        }
+        public FLabel label;
+        public IconSymbol symbol;
     }
 
     public int Score {
@@ -71,19 +65,32 @@ sealed class ScoreCounter : HUD.HudPart
         hud.fadeCircles.Add(new HUD.FadeCircle(hud, 10f, 10f, 0.82f, 30f, 4f, pos, hud.fContainers[1]));
         hud.PlaySound(SoundID.HUD_Food_Meter_Fill_Fade_Circle);
         bonuses[0].label.RemoveFromContainer();
+        bonuses[0].symbol?.RemoveSprites();
         bonuses.RemoveAt(0);
     }
 
-    public void AddBonus(ScoreBonus bonus)
+    public void AddBonus(int score, Color color, IconSymbol.IconSymbolData? icon, bool stacks)
     {
         incrementDelay = 0;
         incrementCounter = 0;
 
-        if (bonus.Stacks && bonuses.FirstOrDefault(b => b.Color == bonus.Color && b.Stacks) is ScoreBonus stackable) {
-            stackable.Add += bonus.Add;
+        if (stacks && bonuses.FirstOrDefault(b => b.Color == color && b.Stacks) is ScoreBonus stackable) {
+            stackable.Add += score;
         }
         else {
-            bonuses.Add(bonus);
+            ScoreBonus newest = new() {
+                Initial = score,
+                Add = score,
+                Color = color,
+                Stacks = stacks,
+            };
+            bonuses.Add(newest);
+
+            hud.fContainers[0].AddChild(newest.label = new(Custom.GetDisplayFont(), ""));
+
+            if (icon.HasValue) {
+                newest.symbol = IconSymbol.CreateIconSymbol(icon.Value, hud.fContainers[0]);
+            }
         }
     }
 
@@ -177,17 +184,29 @@ sealed class ScoreCounter : HUD.HudPart
         foreach (var bonus in bonuses) {
             i++;
 
-            if (bonus.label == null) {
-                bonus.label = new(Custom.GetDisplayFont(), "");
-                hud.fContainers[0].AddChild(bonus.label);
-            }
             pos.x -= 28;
+
+            if (bonus.symbol != null) {
+                if (bonus.symbol.symbolSprite == null) {
+                    bonus.symbol.Show(true);
+                }
+
+                pos.x -= 0.5f * bonus.symbol.symbolSprite.element.sourcePixelSize.x;
+
+                bonus.symbol.Draw(timeStacker, pos - new Vector2(0, 2));
+                bonus.symbol.symbolSprite.color = bonus.Color;
+                bonus.symbol.symbolSprite.alpha = Mathf.Min(alpha, 0.5f + 0.5f * Mathf.Sign(i + 0.5f + clock / Mathf.PI / 40f));
+
+                pos.x -= 0.5f * bonus.symbol.symbolSprite.element.sourcePixelSize.x + 14;
+            }
+
             if (bonus.Initial > 9) {
                 pos.x -= 4;
             }
             if (bonus.Initial > 99) {
                 pos.x -= 6;
             }
+
             bonus.label.scale = 0.8f;
             bonus.label.text = Plugin.FmtAdd(bonus.Add);
             bonus.label.color = bonus.Color;
@@ -200,6 +219,13 @@ sealed class ScoreCounter : HUD.HudPart
     public override void ClearSprites()
     {
         base.ClearSprites();
+
         scoreText.RemoveFromContainer();
+
+        foreach (var bonus in bonuses) {
+            bonus.label.RemoveFromContainer();
+            bonus.symbol?.RemoveSprites();
+        }
+        bonuses.Clear();
     }
 }

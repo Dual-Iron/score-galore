@@ -78,12 +78,31 @@ sealed class Plugin : BaseUnityPlugin
         return new HSLColor(Custom.LerpMap(score, 0f, targetScore * 2f, 0f, 240f / 360f), 0.7f, 0.7f).rgb;
     }
 
+    private void AddCurrentCycleScore(RainWorldGame game, int score, IconSymbol.IconSymbolData? icon)
+    {
+        if (score == 0) return;
+        if (icon == null) {
+            AddCurrentCycleScore(game, score, Color.white);
+            return;
+        }
+
+        Color color = icon.Value.itemType == AbstractPhysicalObject.AbstractObjectType.Creature
+            ? CreatureSymbol.ColorOfCreature(icon.Value)
+            : ItemSymbol.ColorForItem(icon.Value.itemType, icon.Value.intData);
+
+        if (game?.cameras[0]?.hud?.parts.OfType<ScoreCounter>().FirstOrDefault() is ScoreCounter counter) {
+            counter.AddBonus(score, color, icon, false);
+        }
+        else {
+            CurrentCycleScore += score;
+        }
+    }
     private void AddCurrentCycleScore(RainWorldGame game, int score, Color color, bool stacks = false)
     {
         if (score == 0) return;
 
         if (game?.cameras[0]?.hud?.parts.OfType<ScoreCounter>().FirstOrDefault() is ScoreCounter counter) {
-            counter.AddBonus(new(score, color, stacks));
+            counter.AddBonus(score, color, null, stacks);
         }
         else {
             CurrentCycleScore += score;
@@ -174,9 +193,9 @@ sealed class Plugin : BaseUnityPlugin
         orig(self, killer, victim);
 
         if (killer is Player && self.room.game.IsStorySession) {
-            IconSymbol.IconSymbolData iconData = CreatureSymbol.SymbolDataFromCreature(victim.abstractCreature);
+            IconSymbol.IconSymbolData icon = CreatureSymbol.SymbolDataFromCreature(victim.abstractCreature);
 
-            AddCurrentCycleScore(self.room.game, KillScore(iconData), CreatureSymbol.ColorOfCreature(iconData));
+            AddCurrentCycleScore(self.room.game, KillScore(icon), icon);
         }
     }
 
@@ -193,7 +212,7 @@ sealed class Plugin : BaseUnityPlugin
 
             // "Food quest completed"
             if (!gourdBefore && g.currentCycleProgress.All(n => n > 0)) {
-                AddCurrentCycleScore(s.game, MSC(300), new(0.78f, 0.64f, 0.51f));
+                AddCurrentCycleScore(s.game, MSC(300), CreatureSymbol.SymbolDataFromCreature(s.Players[self.playerNumber]));
             }
         }
         else {
@@ -268,15 +287,15 @@ sealed class Plugin : BaseUnityPlugin
         // "Met Looks to the Moon" and "Met Five Pebbles"
         if (self.room.game.StoryCharacter != SlugcatStats.Name.Red && self.room.game.StoryCharacter != MoreSlugcatsEnums.SlugcatStatsName.Artificer) {
             if (before5P == 0 && m.SSaiConversationsHad > 0) {
-                AddCurrentCycleScore(self.room.game, MSC(40), new(1f, 0.4f, 0.8f));
+                AddCurrentCycleScore(self.room.game, MSC(40), new Color(1f, 0.4f, 0.8f));
             }
             if (beforeLttM == 0 && m.SLOracleState.playerEncounters > 0) {
-                AddCurrentCycleScore(self.room.game, MSC(40), new(0.12f, 0.45f, 0.55f));
+                AddCurrentCycleScore(self.room.game, MSC(40), new Color(0.12f, 0.45f, 0.55f));
             }
         }
         // "Helped Five Pebbles"
         if (!sawNeuron && m.pebblesSeenGreenNeuron) {
-            AddCurrentCycleScore(self.room.game, 40, new(1f, 0.4f, 0.8f));
+            AddCurrentCycleScore(self.room.game, 40, new Color(1f, 0.4f, 0.8f));
         }
     }
 
@@ -284,13 +303,14 @@ sealed class Plugin : BaseUnityPlugin
     {
         MiscWorldSaveData m = self.room.game.GetStorySession.saveState.miscWorldSaveData;
 
+        var neuron = self.resqueSwarmer;
         bool revived = m.moonRevived;
 
         orig(self, eu);
 
         // "Delivered Payload"
         if (!revived && m.moonRevived) {
-            AddCurrentCycleScore(self.room.game, 100, new(0f, 1f, 0.3f));
+            AddCurrentCycleScore(self.room.game, 100, ItemSymbol.SymbolDataFromItem(neuron.abstractPhysicalObject));
         }
     }
 
@@ -302,9 +322,7 @@ sealed class Plugin : BaseUnityPlugin
 
         // "Unique pearls read"
         if (!read && item is DataPearl pearl && self.State.significantPearls.Contains(pearl.AbstractPearl.dataPearlType) && self.oracle.room.game.StoryCharacter != SlugcatStats.Name.Red) {
-            var data = ItemSymbol.SymbolDataFromItem(pearl.abstractPhysicalObject);
-            var color = data.HasValue ? ItemSymbol.ColorForItem(pearl.abstractPhysicalObject.type, data.Value.intData) : Color.white;
-            AddCurrentCycleScore(self.oracle.room.game, MSC(20), color);
+            AddCurrentCycleScore(self.oracle.room.game, MSC(20), ItemSymbol.SymbolDataFromItem(pearl.abstractPhysicalObject));
         }
     }
 
@@ -318,9 +336,7 @@ sealed class Plugin : BaseUnityPlugin
 
         // "Unique pearls read" for arti
         if (!read && item is DataPearl pearl && state.significantPearls.Contains(pearl.AbstractPearl.dataPearlType)) {
-            var data = ItemSymbol.SymbolDataFromItem(pearl.abstractPhysicalObject);
-            var color = data.HasValue ? ItemSymbol.ColorForItem(pearl.abstractPhysicalObject.type, data.Value.intData) : Color.white;
-            AddCurrentCycleScore(self.oracle.room.game, MSC(20), color);
+            AddCurrentCycleScore(self.oracle.room.game, MSC(20), ItemSymbol.SymbolDataFromItem(pearl.abstractPhysicalObject));
         }
     }
 

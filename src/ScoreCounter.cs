@@ -1,5 +1,4 @@
-﻿using Menu;
-using RWCustom;
+﻿using RWCustom;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -16,19 +15,23 @@ sealed class ScoreCounter : HUD.HudPart
         public FLabel label;
     }
 
-    public int Score;
-    public int TargetScore = 10;
-    public int LastMinute;
+    public int Score {
+        get => Plugin.CurrentCycleScore;
+        set {
+            Plugin.CurrentCycleScore = value;
+            scoreText.text = value.ToString();
+        }
+    }
+    public int TargetScore => Plugin.CurrentAverageScore;
 
-    readonly int[] killScores;
     readonly List<ScoreBonus> bonuses = new();
+    readonly FLabel scoreText;
+    readonly FSprite darkGradient;
+    readonly FSprite lightGradient;
 
     Vector2 pos;
     Vector2 lastPos;
 
-    FLabel scoreText;
-    FSprite darkGradient;
-    FSprite lightGradient;
     float alpha;
     float lastAlpha;
     float bump;
@@ -41,8 +44,6 @@ sealed class ScoreCounter : HUD.HudPart
 
     public ScoreCounter(HUD.HUD hud) : base(hud)
     {
-        // TODO set TargetScore to average score
-
         pos = new Vector2(hud.rainWorld.screenSize.x - 20f + 0.01f, 20.01f);
 
         hud.fContainers[0].AddChild(scoreText = new FLabel(Custom.GetDisplayFont(), "0"));
@@ -55,18 +56,7 @@ sealed class ScoreCounter : HUD.HudPart
         hud.fContainers[0].AddChild(lightGradient = new("Futile_White", true) {
             shader = hud.rainWorld.Shaders["FlatLight"]
         });
-
-        killScores = new int[ExtEnum<MultiplayerUnlocks.SandboxUnlockID>.values.Count];
-        for (int i = 0; i < killScores.Length; i++) {
-            killScores[i] = 1;
-        }
-        SandboxSettingsInterface.DefaultKillScores(ref killScores);
-        killScores[(int)MultiplayerUnlocks.SandboxUnlockID.Slugcat] = 1;
     }
-
-    private Color ScoreTextColor() => new HSLColor(Custom.LerpMap(Score, 0f, TargetScore * 2f, 0f, 240f / 360f), 0.75f, 0.75f).rgb;
-
-    private string FmtAdd(int add) => add > 0 ? "+" + add : add.ToString();
 
     private void RemoveCurrentBonus()
     {
@@ -82,7 +72,6 @@ sealed class ScoreCounter : HUD.HudPart
 
         incrementDelay = 0;
         incrementCounter = 0;
-        bump = 1f;
 
         if (bonuses.FirstOrDefault(b => b.Color == bonus.Color) is ScoreBonus current) {
             current.Add += bonus.Add;
@@ -96,13 +85,7 @@ sealed class ScoreCounter : HUD.HudPart
     {
         IconSymbol.IconSymbolData iconData = CreatureSymbol.SymbolDataFromCreature(victim.abstractCreature);
 
-        var s = (StoryGameStatisticsScreen)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(StoryGameStatisticsScreen));
-        var score = s.GetNonSandboxKillscore(victim.Template.type);
-
-        if (score == 0 && MultiplayerUnlocks.SandboxUnlockForSymbolData(iconData) is MultiplayerUnlocks.SandboxUnlockID unlockID) {
-            score = killScores[unlockID.Index];
-        }
-
+        int score = Plugin.KillScore(iconData);
         if (score != 0) {
             bonuses.Add(new() { Add = score, Color = CreatureSymbol.ColorOfCreature(iconData) });
         }
@@ -116,12 +99,12 @@ sealed class ScoreCounter : HUD.HudPart
         lastAlpha = alpha;
         lastBump = bump;
 
-        bump = Custom.LerpAndTick(bump, 0f, 0.04f, 0.033333335f);
+        bump = Custom.LerpAndTick(bump, 0f, 1f/25f, 1f/30f);
 
         clock++;
 
         if (bonuses.Count > 0) {
-            alpha = Custom.LerpAndTick(alpha, remainVisible > 0 ? 1f : Mathf.InverseLerp(10f, 50f, incrementDelay), 0.06f, 0.033333335f);
+            alpha = Custom.LerpAndTick(alpha, 1f, 1f/17f, 1f/30f);
 
             Update(bonuses[0]);
         }
@@ -142,22 +125,21 @@ sealed class ScoreCounter : HUD.HudPart
 
     private void Update(ScoreBonus bonus)
     {
-        if (++incrementDelay < 80) {
+        if (++incrementDelay < 160) {
             return;
         }
 
-        if (++incrementCounter < 10) {
+        if (++incrementCounter < 5) {
             return;
         }
 
         incrementCounter = 0;
         bump = 1f;
-        remainVisible = 20;
+        remainVisible = 40;
 
         int add = Math.Sign(bonus.Add);
 
         Score += add;
-        scoreText.text = Score.ToString();
 
         bonus.Add -= add;
         if (bonus.Add == 0) {
@@ -169,8 +151,8 @@ sealed class ScoreCounter : HUD.HudPart
     {
         base.Draw(timeStacker);
 
-        scoreText.color = ScoreTextColor();
-        lightGradient.color = ScoreTextColor();
+        scoreText.color = Plugin.ScoreTextColor(Score, TargetScore);
+        lightGradient.color = Plugin.ScoreTextColor(Score, TargetScore);
 
         Vector2 pos = Vector2.Lerp(lastPos, this.pos, timeStacker);
         scoreText.x = pos.x;
@@ -201,7 +183,7 @@ sealed class ScoreCounter : HUD.HudPart
             }
             pos.x -= 30;
             bonus.label.scale = 0.8f;
-            bonus.label.text = FmtAdd(bonus.Add);
+            bonus.label.text = Plugin.FmtAdd(bonus.Add);
             bonus.label.color = bonus.Color;
             bonus.label.alpha = Mathf.Min(alpha, 0.5f + 0.5f * Mathf.Sign(i + clock / Mathf.PI / 40f));
             bonus.label.x = pos.x;

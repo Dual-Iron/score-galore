@@ -3,7 +3,7 @@
   "name": "Score Galore",
   "version": "1.0.0",
   "authors": "Dual",
-  "description": "Gives a plethora of information about your kill scores. Customize when, how, and where you see your score for the cycle and the playthrough at large. View vanilla's statistics screen at any time.<LINE><LINE>Code at github.com/Dual-Iron/score-galore",
+  "description": "Gives a plethora of information about your score in real time, with extra information at the end of each cycle. View the statistics screen from the main menu at any time. Might remind you of Score Popups and Score Tracker from RainDB.<LINE><LINE>Code at github.com/Dual-Iron/score-galore",
   "requirements": [],
   "requirements_names": [],
   "checksum_override_version": false

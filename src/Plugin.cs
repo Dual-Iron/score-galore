@@ -15,7 +15,7 @@ using UnityEngine;
 
 namespace ScoreGalore;
 
-[BepInPlugin("com.dual.score-galore", "Score Galore", "1.0.2")]
+[BepInPlugin("com.dual.score-galore", "Score Galore", "1.0.3")]
 sealed class Plugin : BaseUnityPlugin
 {
     // -- Vanilla --
@@ -344,7 +344,9 @@ sealed class Plugin : BaseUnityPlugin
     {
         orig(self, package);
 
-        Vector2 bottomLeft = new(self.LeftHandButtonsPosXAdd, 28 + 40 * Mathf.Ceil(self.endgameTokens.tokens.Count / 5f));
+        int tokens = self.endgameTokens?.tokens.Count ?? 0;
+
+        Vector2 bottomLeft = new(self.LeftHandButtonsPosXAdd, 28 + 40 * Mathf.Ceil(tokens / 5f));
 
         int current = CurrentCycleScore;
         int total = GetTotalScore(package.saveState);

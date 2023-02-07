@@ -124,6 +124,9 @@ sealed class Plugin : BaseUnityPlugin
         }
         int numerator = GetTotalScore(saveState);
         int denominator = saveState.deathPersistentSaveData.survives + saveState.deathPersistentSaveData.deaths + saveState.deathPersistentSaveData.quits;
+        if (denominator == 0) {
+            return 10;
+        }
         return Mathf.RoundToInt((float)numerator / denominator);
     }
 

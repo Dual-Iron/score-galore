@@ -15,7 +15,7 @@ using UnityEngine;
 
 namespace ScoreGalore;
 
-[BepInPlugin("com.dual.score-galore", "Score Galore", "1.0.1")]
+[BepInPlugin("com.dual.score-galore", "Score Galore", "1.0.2")]
 sealed class Plugin : BaseUnityPlugin
 {
     // -- Vanilla --
@@ -344,7 +344,7 @@ sealed class Plugin : BaseUnityPlugin
     {
         orig(self, package);
 
-        Vector2 topLeft = new(self.LeftHandButtonsPosXAdd, 120 + self.continueButton.pos.y + 40 * Mathf.Floor(self.endgameTokens.tokens.Count / 5f));
+        Vector2 bottomLeft = new(self.LeftHandButtonsPosXAdd, 28 + 40 * Mathf.Ceil(self.endgameTokens.tokens.Count / 5f));
 
         int current = CurrentCycleScore;
         int total = GetTotalScore(package.saveState);
@@ -356,20 +356,20 @@ sealed class Plugin : BaseUnityPlugin
             current = -3;
         }
 
-        self.pages[0].subObjects.Add(new ScoreTicker(self.pages[0], topLeft, self.Translate("Cycle :")) {
+        self.pages[0].subObjects.Add(new ScoreTicker(self.pages[0], bottomLeft + new Vector2(0, 60), self.Translate("Cycle :")) {
             start = 0,
             end = current,
             fmtAdd = true,
             numberColor = ScoreTextColor(current, oldAverage)
         });
 
-        self.pages[0].subObjects.Add(new ScoreTicker(self.pages[0], topLeft - new Vector2(0, 30), self.Translate("Total :")) {
+        self.pages[0].subObjects.Add(new ScoreTicker(self.pages[0], bottomLeft + new Vector2(0, 30), self.Translate("Total :")) {
             start = total - current,
             end = total,
             animationClock = -60,
         });
 
-        self.pages[0].subObjects.Add(new ScoreTicker(self.pages[0], topLeft - new Vector2(0, 60), self.Translate("Average :")) {
+        self.pages[0].subObjects.Add(new ScoreTicker(self.pages[0], bottomLeft, self.Translate("Average :")) {
             start = oldAverage,
             end = newAverage,
             animationClock = -120,

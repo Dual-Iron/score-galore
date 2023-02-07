@@ -17,10 +17,7 @@ sealed class ScoreCounter : HUD.HudPart
 
     public int Score {
         get => Plugin.CurrentCycleScore;
-        set {
-            Plugin.CurrentCycleScore = value;
-            scoreText.text = value.ToString();
-        }
+        set => Plugin.CurrentCycleScore = value;
     }
     public int TargetScore => Plugin.CurrentAverageScore;
 
@@ -68,17 +65,9 @@ sealed class ScoreCounter : HUD.HudPart
 
     public void AddBonus(ScoreBonus bonus)
     {
-        if (bonus.Add == 0) return;
-
         incrementDelay = 0;
         incrementCounter = 0;
-
-        if (bonuses.FirstOrDefault(b => b.Color == bonus.Color) is ScoreBonus current) {
-            current.Add += bonus.Add;
-        }
-        else {
-            bonuses.Add(bonus);
-        }
+        bonuses.Add(bonus);
     }
 
     public override void Update()
@@ -110,6 +99,10 @@ sealed class ScoreCounter : HUD.HudPart
         }
         else if (remainVisible > 0) {
             remainVisible--;
+        }
+
+        if (scoreText.text != Score.ToString()) {
+            scoreText.text = Score.ToString();
         }
     }
 

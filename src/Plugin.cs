@@ -18,6 +18,7 @@ namespace ScoreGalore;
 [BepInPlugin("com.dual.score-galore", "Score Galore", "1.0.0")]
 sealed class Plugin : BaseUnityPlugin
 {
+    // -- Vanilla --
     // Food             +1
     // Survived cycle   +10
     // Died in cycle    -3
@@ -26,7 +27,7 @@ sealed class Plugin : BaseUnityPlugin
     // Hunter payload   +100
     // Hunter 5P        +40
     // Ascending        +300
-
+    // -- MSC exclusive --
     // Meeting LttM     +40
     // Meeting 5P       +40
     // Pearl read       +20
@@ -77,23 +78,43 @@ sealed class Plugin : BaseUnityPlugin
         return new HSLColor(Custom.LerpMap(score, 0f, targetScore * 2f, 0f, 240f / 360f), 0.7f, 0.7f).rgb;
     }
 
-    private ScoreCounter GetCounter(RainWorldGame game)
+    private void AddCurrentCycleScore(RainWorldGame game, int score, Color color)
     {
-        return game?.session is StoryGameSession ? game.cameras[0]?.hud?.parts.OfType<ScoreCounter>().FirstOrDefault() : null;
+        if (score == 0) return;
+
+        if (game?.cameras[0]?.hud?.parts.OfType<ScoreCounter>().FirstOrDefault() is ScoreCounter counter) {
+            counter.AddBonus(new() { Add = score, Color = color });
+        }
+        else {
+            CurrentCycleScore += score;
+        }
     }
 
     private int MSC(int score) => ModManager.MSC ? score : 0;
 
-    private int GetTotalScore(SaveState saveState)
+    private int GetTotalScore(SaveState s)
     {
-        if (saveState == null) {
+        if (s == null) {
             return 0;
         }
-        return saveState.totFood + saveState.deathPersistentSaveData.survives * 10 + saveState.kills.Sum(kvp => KillScore(kvp.Key) * kvp.Value)
-            + MSC(saveState.deathPersistentSaveData.friendsSaved) * 15
-            - saveState.deathPersistentSaveData.deaths * 3 
-            - saveState.deathPersistentSaveData.quits * 3
-            - saveState.totTime / 60;
+
+        var d = s.deathPersistentSaveData;
+        var red = s.saveStateNumber == SlugcatStats.Name.Red;
+        var arti = s.saveStateNumber == MoreSlugcatsEnums.SlugcatStatsName.Artificer;
+
+        int vanilla = s.totFood + d.survives * 10 + s.kills.Sum(kvp => KillScore(kvp.Key) * kvp.Value)
+            - (d.deaths * 3 + d.quits * 3 + s.totTime / 60)
+            + (d.ascended ? 300 : 0)
+            + (s.miscWorldSaveData.moonRevived ? 100 : 0)
+            + (s.miscWorldSaveData.pebblesSeenGreenNeuron ? 40 : 0);
+
+        int msc = (!arti ? d.friendsSaved * 15 : 0)
+            + (!red ? s.miscWorldSaveData.SLOracleState.significantPearls.Count * 20 : 0)
+            + (!red && !arti && s.miscWorldSaveData.SSaiConversationsHad > 0 ? 40 : 0)
+            + (!red && !arti && s.miscWorldSaveData.SLOracleState.playerEncounters > 0 ? 40 : 0)
+            + (d.winState.GetTracker(MoreSlugcatsEnums.EndgameID.Gourmand, false) is WinState.GourFeastTracker { GoalFullfilled: true } ? 300 : 0);
+
+        return vanilla + MSC(msc);
     }
 
     private int GetAverageScore(SaveState saveState)
@@ -108,18 +129,24 @@ sealed class Plugin : BaseUnityPlugin
 
     public void OnEnable()
     {
-        // Real-time score tracking
+        // -- Real-time score tracking --
         On.HUD.HUD.InitSinglePlayerHud += HUD_InitSinglePlayerHud;
-        On.SocialEventRecognizer.Killing += SocialEventRecognizer_Killing;
-        On.Player.AddFood += Player_AddFood;
-        On.Player.SubtractFood += Player_SubtractFood;
-        On.StoryGameSession.TimeTick += StoryGameSession_TimeTick;
-        On.SaveState.SessionEnded += SaveState_SessionEnded;
 
-        // Sleep screen score trackers
+        // Track killing, eating, vomiting, passage of time, friends
+        On.SocialEventRecognizer.Killing += CountKills;
+        On.Player.AddFood += CountEatAndGourd;
+        On.Player.SubtractFood += CountVomit;
+        On.StoryGameSession.TimeTick += CountTime;
+        On.SaveState.SessionEnded += CountFriendsSaved;
+        On.Oracle.Update += CountMoonand5P;
+        On.SLOracleWakeUpProcedure.Update += CountReviveMoon;
+        On.SLOracleBehaviorHasMark.GrabObject += CountPearl;
+        On.SSOracleBehavior.StartItemConversation += CountPearl5P;
+
+        // -- Sleep screen score trackers --
         On.Menu.SleepAndDeathScreen.GetDataFromGame += SleepAndDeathScreen_GetDataFromGame;
 
-        // View statistics screen
+        // -- View statistics screen --
         On.Menu.SlugcatSelectMenu.ctor += SlugcatSelectMenu_ctor;
         On.Menu.SlugcatSelectMenu.StartGame += SlugcatSelectMenu_StartGame;
         On.Menu.StoryGameStatisticsScreen.AddBkgIllustration += StoryGameStatisticsScreen_AddBkgIllustration;
@@ -137,64 +164,144 @@ sealed class Plugin : BaseUnityPlugin
         });
     }
 
-    private void SocialEventRecognizer_Killing(On.SocialEventRecognizer.orig_Killing orig, SocialEventRecognizer self, Creature killer, Creature victim)
+    private void CountKills(On.SocialEventRecognizer.orig_Killing orig, SocialEventRecognizer self, Creature killer, Creature victim)
     {
         orig(self, killer, victim);
 
-        if (killer is Player && GetCounter(self.room.game) is ScoreCounter counter) {
+        if (killer is Player && self.room.game.IsStorySession) {
             IconSymbol.IconSymbolData iconData = CreatureSymbol.SymbolDataFromCreature(victim.abstractCreature);
 
-            counter.AddBonus(new() { Add = KillScore(iconData), Color = CreatureSymbol.ColorOfCreature(iconData) });
+            AddCurrentCycleScore(self.room.game, KillScore(iconData), CreatureSymbol.ColorOfCreature(iconData));
         }
     }
 
-    private void Player_AddFood(On.Player.orig_AddFood orig, Player self, int add)
+    private void CountEatAndGourd(On.Player.orig_AddFood orig, Player self, int add)
     {
         if (self.abstractCreature.world.game.session is StoryGameSession story) {
+            var s = story.saveState;
+
+            bool gourdBefore = s.deathPersistentSaveData.winState.GetTracker(MoreSlugcatsEnums.EndgameID.Gourmand, false) is WinState.GourFeastTracker g && g.currentCycleProgress.All(n => n > 0);
             int before = story.saveState.totFood;
             orig(self, add);
             int after = story.saveState.totFood;
 
-            GetCounter(story.game)?.AddBonus(new() { Add = after - before, Color = Menu.Menu.MenuRGB(Menu.Menu.MenuColors.MediumGrey) });
+            AddCurrentCycleScore(story.game, after - before, Menu.Menu.MenuRGB(Menu.Menu.MenuColors.MediumGrey));
+
+            // "Food quest completed"
+            if (!gourdBefore && s.deathPersistentSaveData.winState.GetTracker(MoreSlugcatsEnums.EndgameID.Gourmand, false) is WinState.GourFeastTracker g2 && g2.currentCycleProgress.All(n => n > 0)) {
+                AddCurrentCycleScore(story.game, MSC(300), new(0.78f, 0.64f, 0.51f));
+            }
         }
         else {
             orig(self, add);
         }
     }
 
-    private void Player_SubtractFood(On.Player.orig_SubtractFood orig, Player self, int sub)
+    private void CountVomit(On.Player.orig_SubtractFood orig, Player self, int sub)
     {
         if (self.abstractCreature.world.game.session is StoryGameSession story) {
             int before = story.saveState.totFood;
             orig(self, sub);
             int after = story.saveState.totFood;
 
-            GetCounter(story.game)?.AddBonus(new() { Add = after - before, Color = new Color(0.61f, 0.83f, 0.16f) });
+            AddCurrentCycleScore(story.game, after - before, new Color(0.61f, 0.83f, 0.16f));
         }
         else {
             orig(self, sub);
         }
     }
 
-    private void StoryGameSession_TimeTick(On.StoryGameSession.orig_TimeTick orig, StoryGameSession self, float dt)
+    private void CountTime(On.StoryGameSession.orig_TimeTick orig, StoryGameSession self, float dt)
     {
         orig(self, dt);
 
         int minute = self.playerSessionRecords[0].time / 2400;
 
-        if (currentCycleTime < minute && GetCounter(self.game) is ScoreCounter counter) {
-            counter.AddBonus(new() { Add = currentCycleTime - minute, Color = new(0.66f, 0.6f, 0.6f) });
+        if (currentCycleTime < minute) {
+            AddCurrentCycleScore(self.game, currentCycleTime - minute, new(0.66f, 0.6f, 0.6f));
             currentCycleTime = minute;
         }
     }
 
-    private void SaveState_SessionEnded(On.SaveState.orig_SessionEnded orig, SaveState self, RainWorldGame game, bool survived, bool newMalnourished)
+    private void CountFriendsSaved(On.SaveState.orig_SessionEnded orig, SaveState self, RainWorldGame game, bool survived, bool newMalnourished)
     {
         int friendsSavedBefore = self.deathPersistentSaveData.friendsSaved;
-        orig(self, game, survived, newMalnourished);
-        int friendsSavedAfter = self.deathPersistentSaveData.friendsSaved;
 
-        CurrentCycleScore += 15 * MSC(friendsSavedAfter - friendsSavedBefore);
+        orig(self, game, survived, newMalnourished);
+
+        // "Friends sheltered"
+        if (self.saveStateNumber != MoreSlugcatsEnums.SlugcatStatsName.Artificer) {
+            CurrentCycleScore += 15 * MSC(self.deathPersistentSaveData.friendsSaved - friendsSavedBefore);
+        }
+    }
+
+    private void CountMoonand5P(On.Oracle.orig_Update orig, Oracle self, bool eu)
+    {
+        MiscWorldSaveData m = self.room.game.GetStorySession.saveState.miscWorldSaveData;
+
+        bool sawNeuron = m.pebblesSeenGreenNeuron;
+        int before5P = m.SSaiConversationsHad;
+        int beforeLttM = m.SLOracleState.playerEncounters;
+
+        orig(self, eu);
+
+        // "Met Looks to the Moon" and "Met Five Pebbles"
+        if (self.room.game.StoryCharacter != SlugcatStats.Name.Red && self.room.game.StoryCharacter != MoreSlugcatsEnums.SlugcatStatsName.Artificer) {
+            if (before5P == 0 && m.SSaiConversationsHad > 0) {
+                AddCurrentCycleScore(self.room.game, MSC(40), new(1f, 0.4f, 0.8f));
+            }
+            if (beforeLttM == 0 && m.SLOracleState.playerEncounters > 0) {
+                AddCurrentCycleScore(self.room.game, MSC(40), new(0.12f, 0.45f, 0.55f));
+            }
+        }
+        // "Helped Five Pebbles"
+        if (!sawNeuron && m.pebblesSeenGreenNeuron) {
+            AddCurrentCycleScore(self.room.game, 40, new(1f, 0.4f, 0.8f));
+        }
+    }
+
+    private void CountReviveMoon(On.SLOracleWakeUpProcedure.orig_Update orig, SLOracleWakeUpProcedure self, bool eu)
+    {
+        MiscWorldSaveData m = self.room.game.GetStorySession.saveState.miscWorldSaveData;
+
+        bool revived = m.moonRevived;
+
+        orig(self, eu);
+
+        // "Delivered Payload"
+        if (!revived && m.moonRevived) {
+            AddCurrentCycleScore(self.room.game, 100, new(0f, 1f, 0.3f));
+        }
+    }
+
+    private void CountPearl(On.SLOracleBehaviorHasMark.orig_GrabObject orig, SLOracleBehaviorHasMark self, PhysicalObject item)
+    {
+        bool read = item is DataPearl p && self.State.significantPearls.Contains(p.AbstractPearl.dataPearlType);
+
+        orig(self, item);
+
+        // "Unique pearls read"
+        if (!read && item is DataPearl pearl && self.State.significantPearls.Contains(pearl.AbstractPearl.dataPearlType) && self.oracle.room.game.StoryCharacter != SlugcatStats.Name.Red) {
+            var data = ItemSymbol.SymbolDataFromItem(pearl.abstractPhysicalObject);
+            var color = data.HasValue ? ItemSymbol.ColorForItem(pearl.abstractPhysicalObject.type, data.Value.intData) : Color.white;
+            AddCurrentCycleScore(self.oracle.room.game, MSC(20), color);
+        }
+    }
+
+    private void CountPearl5P(On.SSOracleBehavior.orig_StartItemConversation orig, SSOracleBehavior self, DataPearl item)
+    {
+        var state = self.oracle.room.game.GetStorySession.saveState.miscWorldSaveData.SLOracleState;
+
+        bool read = item is DataPearl p && state.significantPearls.Contains(p.AbstractPearl.dataPearlType);
+
+        orig(self, item);
+
+        // "Unique pearls read" for arti
+        if (!read && item is DataPearl pearl && state.significantPearls.Contains(pearl.AbstractPearl.dataPearlType)) {
+            var data = ItemSymbol.SymbolDataFromItem(pearl.abstractPhysicalObject);
+            var color = data.HasValue ? ItemSymbol.ColorForItem(pearl.abstractPhysicalObject.type, data.Value.intData) : Color.white;
+            AddCurrentCycleScore(self.oracle.room.game, MSC(20), color);
+        }
     }
 
     private void SleepAndDeathScreen_GetDataFromGame(On.Menu.SleepAndDeathScreen.orig_GetDataFromGame orig, SleepAndDeathScreen self, KarmaLadderScreen.SleepDeathScreenDataPackage package)
@@ -209,7 +316,7 @@ sealed class Plugin : BaseUnityPlugin
         int newAverage = GetAverageScore(package.saveState);
 
         if (self.IsAnyDeath) {
-            // Start with 10 (for surviving), but deaths are a -3. Does not count time.
+            // Deaths are always -3. Time during failed cycles doesn't counted.
             current = -3;
         }
 

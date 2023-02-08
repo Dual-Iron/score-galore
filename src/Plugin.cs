@@ -15,7 +15,7 @@ using UnityEngine;
 
 namespace ScoreGalore;
 
-[BepInPlugin("com.dual.score-galore", "Score Galore", "1.0.3")]
+[BepInPlugin("com.dual.score-galore", "Score Galore", "1.0.4")]
 sealed class Plugin : BaseUnityPlugin
 {
     // -- Vanilla --
@@ -202,10 +202,6 @@ sealed class Plugin : BaseUnityPlugin
     private void CountGourd(On.PlayerSessionRecord.orig_AddEat orig, PlayerSessionRecord self, PhysicalObject eatenObject)
     {
         if (eatenObject.room.game.session is StoryGameSession s && s.saveState.deathPersistentSaveData.winState.GetTracker(MoreSlugcatsEnums.EndgameID.Gourmand, false) is WinState.GourFeastTracker g) {
-            for (int i = 0; i < g.currentCycleProgress.Length - 1; i++) {
-                g.currentCycleProgress[i] = 1;
-            }
-
             bool gourdBefore = g.currentCycleProgress.All(n => n > 0);
 
             orig(self, eatenObject);

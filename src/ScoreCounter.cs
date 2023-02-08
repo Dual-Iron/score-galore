@@ -132,6 +132,10 @@ sealed class ScoreCounter : HUD.HudPart
 
     private void Update(ScoreBonus bonus)
     {
+        if (hud.textPrompt != null && hud.textPrompt.messages.Count > 0 || hud.owner is Player p && p.abstractPhysicalObject.world.game.GamePaused) {
+            return;
+        }
+
         if (++incrementDelay < 160) {
             return;
         }

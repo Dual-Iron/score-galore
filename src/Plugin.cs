@@ -15,7 +15,7 @@ using UnityEngine;
 
 namespace ScoreGalore;
 
-[BepInPlugin("com.dual.score-galore", "Score Galore", "1.0.4")]
+[BepInPlugin("com.dual.score-galore", "Score Galore", "1.0.5")]
 sealed class Plugin : BaseUnityPlugin
 {
     // -- Vanilla --

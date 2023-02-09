@@ -47,7 +47,9 @@ sealed class ScoreTicker : PositionedMenuObject
         lastFlash = flash;
         flash = Custom.LerpAndTick(flash, 0f, 0.05f, 0.01f);
 
-        animationClock += RWInput.PlayerInput(0, menu.manager.rainWorld).mp ? 4 : 1;
+        bool fast = RWInput.PlayerInput(0, menu.manager.rainWorld).mp;
+
+        animationClock += fast ? 4 : 1;
 
         if (animationClock > 0 && !visible) {
             visible = true;
@@ -56,7 +58,7 @@ sealed class ScoreTicker : PositionedMenuObject
             menu.PlaySound(SoundID.UI_Multiplayer_Player_Result_Box_Kill_Tick);
         }
 
-        if (animationClock > 40 && start != end && (Math.Abs(end - start) > 10 || animationClock % 4 == 0)) {
+        if (animationClock > 40 && start != end && (fast || Math.Abs(end - start) > 10 || animationClock % 4 == 0)) {
             Tick();
         }
     }

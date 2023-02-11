@@ -205,10 +205,10 @@ sealed class ScoreCounter : HUD.HudPart
             }
 
             if (bonus.Initial > 9) {
-                pos.x -= 4;
+                pos.x -= 8;
             }
             if (bonus.Initial > 99) {
-                pos.x -= 6;
+                pos.x -= 8;
             }
 
             bonus.label.scale = 0.8f;

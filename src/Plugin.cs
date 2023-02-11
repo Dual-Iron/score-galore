@@ -15,7 +15,7 @@ using UnityEngine;
 
 namespace ScoreGalore;
 
-[BepInPlugin("com.dual.score-galore", "Score Galore", "1.0.5")]
+[BepInPlugin("com.dual.score-galore", "Score Galore", "1.0.6")]
 sealed class Plugin : BaseUnityPlugin
 {
     // -- Vanilla --
@@ -78,7 +78,7 @@ sealed class Plugin : BaseUnityPlugin
         return new HSLColor(Custom.LerpMap(score, 0f, targetScore * 2f, 0f, 240f / 360f), 0.7f, 0.7f).rgb;
     }
 
-    private void AddCurrentCycleScore(RainWorldGame game, int score, IconSymbol.IconSymbolData? icon)
+    private void AddCurrentCycleScore(RainWorldGame game, int score, IconSymbol.IconSymbolData? icon, Color? forcedColor = null)
     {
         if (score == 0) return;
         if (icon == null) {
@@ -86,9 +86,9 @@ sealed class Plugin : BaseUnityPlugin
             return;
         }
 
-        Color color = icon.Value.itemType == AbstractPhysicalObject.AbstractObjectType.Creature
+        Color color = forcedColor ?? (icon.Value.itemType == AbstractPhysicalObject.AbstractObjectType.Creature
             ? CreatureSymbol.ColorOfCreature(icon.Value)
-            : ItemSymbol.ColorForItem(icon.Value.itemType, icon.Value.intData);
+            : ItemSymbol.ColorForItem(icon.Value.itemType, icon.Value.intData));
 
         if (game?.cameras[0]?.hud?.parts.OfType<ScoreCounter>().FirstOrDefault() is ScoreCounter counter) {
             counter.AddBonus(score, color, icon, false);
@@ -208,7 +208,7 @@ sealed class Plugin : BaseUnityPlugin
 
             // "Food quest completed"
             if (!gourdBefore && g.currentCycleProgress.All(n => n > 0)) {
-                AddCurrentCycleScore(s.game, MSC(300), CreatureSymbol.SymbolDataFromCreature(s.Players[self.playerNumber]));
+                AddCurrentCycleScore(s.game, MSC(300), CreatureSymbol.SymbolDataFromCreature(s.Players[0]), forcedColor: new Color(0.94118f, 0.75686f, 0.59216f));
             }
         }
         else {

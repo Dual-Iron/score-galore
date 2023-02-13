@@ -15,7 +15,7 @@ using UnityEngine;
 
 namespace ScoreGalore;
 
-[BepInPlugin("com.dual.score-galore", "Score Galore", "1.0.6")]
+[BepInPlugin("com.dual.score-galore", "Score Galore", "1.0.7")]
 sealed class Plugin : BaseUnityPlugin
 {
     // -- Vanilla --
@@ -250,11 +250,13 @@ sealed class Plugin : BaseUnityPlugin
     {
         orig(self, dt);
 
-        int minute = self.playerSessionRecords[0].time / 2400;
+        if (self.playerSessionRecords != null && self.playerSessionRecords.Length > 0 && self.playerSessionRecords[0] != null) {
+            int minute = self.playerSessionRecords[0].time / 2400;
 
-        if (currentCycleTime < minute) {
-            AddCurrentCycleScore(self.game, currentCycleTime - minute, new(0.66f, 0.6f, 0.6f), stacks: true);
-            currentCycleTime = minute;
+            if (currentCycleTime < minute) {
+                AddCurrentCycleScore(self.game, currentCycleTime - minute, new(0.66f, 0.6f, 0.6f), stacks: true);
+                currentCycleTime = minute;
+            }
         }
     }
 
@@ -272,7 +274,9 @@ sealed class Plugin : BaseUnityPlugin
 
     private void CountMoonand5P(On.Oracle.orig_Update orig, Oracle self, bool eu)
     {
-        MiscWorldSaveData m = self.room.game.GetStorySession.saveState.miscWorldSaveData;
+        MiscWorldSaveData m = self.room.game.GetStorySession?.saveState?.miscWorldSaveData;
+
+        if (m == null) return;
 
         bool sawNeuron = m.pebblesSeenGreenNeuron;
         int before5P = m.SSaiConversationsHad;
@@ -297,7 +301,9 @@ sealed class Plugin : BaseUnityPlugin
 
     private void CountReviveMoon(On.SLOracleWakeUpProcedure.orig_Update orig, SLOracleWakeUpProcedure self, bool eu)
     {
-        MiscWorldSaveData m = self.room.game.GetStorySession.saveState.miscWorldSaveData;
+        MiscWorldSaveData m = self.room.game.GetStorySession?.saveState?.miscWorldSaveData;
+
+        if (m == null) return;
 
         var neuron = self.resqueSwarmer;
         bool revived = m.moonRevived;

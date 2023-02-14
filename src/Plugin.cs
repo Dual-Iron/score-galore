@@ -15,7 +15,7 @@ using UnityEngine;
 
 namespace ScoreGalore;
 
-[BepInPlugin("com.dual.score-galore", "Score Galore", "1.0.7")]
+[BepInPlugin("com.dual.score-galore", "Score Galore", "1.0.8")]
 sealed class Plugin : BaseUnityPlugin
 {
     // -- Vanilla --
@@ -180,12 +180,14 @@ sealed class Plugin : BaseUnityPlugin
     {
         orig(self, cam);
 
-        CurrentCycleScore = 10;
-        CurrentAverageScore = GetAverageScore(self.rainWorld.progression.currentSaveState);
+        if (self.rainWorld.processManager.currentMainLoop is RainWorldGame game && game.IsStorySession) {
+            CurrentCycleScore = 10;
+            CurrentAverageScore = GetAverageScore(self.rainWorld.progression.currentSaveState);
 
-        self.AddPart(new ScoreCounter(self) {
-            Score = CurrentCycleScore,
-        });
+            self.AddPart(new ScoreCounter(self) {
+                Score = CurrentCycleScore,
+            });
+        }
     }
 
     private void CountKills(On.SocialEventRecognizer.orig_Killing orig, SocialEventRecognizer self, Creature killer, Creature victim)
@@ -276,7 +278,10 @@ sealed class Plugin : BaseUnityPlugin
     {
         MiscWorldSaveData m = self.room.game.GetStorySession?.saveState?.miscWorldSaveData;
 
-        if (m == null) return;
+        if (m == null) {
+            orig(self, eu);
+            return;
+        }
 
         bool sawNeuron = m.pebblesSeenGreenNeuron;
         int before5P = m.SSaiConversationsHad;
@@ -303,8 +308,10 @@ sealed class Plugin : BaseUnityPlugin
     {
         MiscWorldSaveData m = self.room.game.GetStorySession?.saveState?.miscWorldSaveData;
 
-        if (m == null) return;
-
+        if (m == null) {
+            orig(self, eu);
+            return;
+        }
         var neuron = self.resqueSwarmer;
         bool revived = m.moonRevived;
 

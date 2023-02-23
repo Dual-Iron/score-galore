@@ -63,9 +63,7 @@ sealed class Plugin : BaseUnityPlugin
             return 0;
         }
 
-        var s = (StoryGameStatisticsScreen)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(StoryGameStatisticsScreen));
-        var score = s.GetNonSandboxKillscore(iconData.critType);
-
+        var score = StoryGameStatisticsScreen.GetNonSandboxKillscore(iconData.critType);
         if (score == 0 && MultiplayerUnlocks.SandboxUnlockForSymbolData(iconData) is MultiplayerUnlocks.SandboxUnlockID unlockID) {
             score = KillScores()[unlockID.Index];
         }

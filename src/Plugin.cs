@@ -15,7 +15,7 @@ using UnityEngine;
 
 namespace ScoreGalore;
 
-[BepInPlugin("com.dual.score-galore", "Score Galore", "1.0.9")]
+[BepInPlugin("com.dual.score-galore", "Score Galore", "1.0.10")]
 sealed class Plugin : BaseUnityPlugin
 {
     // -- Vanilla --
@@ -354,6 +354,10 @@ sealed class Plugin : BaseUnityPlugin
         int tokens = self.endgameTokens?.tokens.Count ?? 0;
 
         Vector2 bottomLeft = new(self.LeftHandButtonsPosXAdd, 28 + 40 * Mathf.Ceil(tokens / 5f));
+
+        if (self.manager.rainWorld.ExpeditionMode && self.expPassage != null) {
+            bottomLeft.y += 59;
+        }
 
         int current = CurrentCycleScore;
         int total = GetTotalScore(package.saveState);

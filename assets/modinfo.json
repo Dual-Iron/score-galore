@@ -1,9 +1,9 @@
 ﻿{
   "id": "score-galore",
   "name": "Score Galore",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "authors": "Dual",
-  "description": "Gauge your performance better than ever! Score Galore displays your score in real time, after each cycle, and for all characters. You can also view the statistics screen at your leisure. Inspired by Score Popups and Score Tracker on RainDB.<LINE><LINE>Code at github.com/Dual-Iron/score-galore",
+  "description": "Gauge your performance better than ever! Score Galore displays your story-mode score in real time, after each cycle, and for all characters. You can also view the statistics screen at your leisure. Inspired by Score Popups and Score Tracker on RainDB.<LINE><LINE>Code at github.com/Dual-Iron/score-galore",
   "requirements": [],
   "requirements_names": [],
   "tags": [ "Cosmetics", "Tools" ],

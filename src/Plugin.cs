@@ -15,7 +15,7 @@ using UnityEngine;
 
 namespace ScoreGalore;
 
-[BepInPlugin("com.dual.score-galore", "Score Galore", "1.0.10")]
+[BepInPlugin("com.dual.score-galore", "Score Galore", "1.0.11")]
 sealed class Plugin : BaseUnityPlugin
 {
     // -- Vanilla --
@@ -71,16 +71,30 @@ sealed class Plugin : BaseUnityPlugin
         return score;
     }
 
-    public static Color ScoreTextColor(int score, int targetScore)
+    internal static Color ScoreTextColor(int score, int targetScore)
     {
         return new HSLColor(Custom.LerpMap(score, 0f, targetScore * 2f, 0f, 240f / 360f), 0.7f, 0.7f).rgb;
     }
 
-    private void AddCurrentCycleScore(RainWorldGame game, int score, IconSymbol.IconSymbolData? icon, Color? forcedColor = null)
+    public static void AddCurrentCycleScore(RainWorldGame game, int score, IconSymbol.IconSymbolData icon, int delay, Color? forcedColor = null)
+    {
+        if (score == 0) return;
+
+        Color color = forcedColor ?? (icon.itemType == AbstractPhysicalObject.AbstractObjectType.Creature
+            ? CreatureSymbol.ColorOfCreature(icon)
+            : ItemSymbol.ColorForItem(icon.itemType, icon.intData));
+
+        CurrentCycleScore += score;
+
+        if (game?.cameras[0]?.hud?.parts.OfType<ScoreCounter>().FirstOrDefault() is ScoreCounter counter) {
+            counter.AddBonus(score, color, icon, delay);
+        }
+    }
+    public static void AddCurrentCycleScore(RainWorldGame game, int score, IconSymbol.IconSymbolData? icon, Color? forcedColor = null)
     {
         if (score == 0) return;
         if (icon == null) {
-            AddCurrentCycleScore(game, score, Color.white);
+            AddCurrentCycleScore(game, score, forcedColor ?? Color.white);
             return;
         }
 
@@ -88,22 +102,20 @@ sealed class Plugin : BaseUnityPlugin
             ? CreatureSymbol.ColorOfCreature(icon.Value)
             : ItemSymbol.ColorForItem(icon.Value.itemType, icon.Value.intData));
 
+        CurrentCycleScore += score;
+
         if (game?.cameras[0]?.hud?.parts.OfType<ScoreCounter>().FirstOrDefault() is ScoreCounter counter) {
             counter.AddBonus(score, color, icon, false);
         }
-        else {
-            CurrentCycleScore += score;
-        }
     }
-    private void AddCurrentCycleScore(RainWorldGame game, int score, Color color, bool stacks = false)
+    public static void AddCurrentCycleScore(RainWorldGame game, int score, Color color, bool stacks = false)
     {
         if (score == 0) return;
 
+        CurrentCycleScore += score;
+
         if (game?.cameras[0]?.hud?.parts.OfType<ScoreCounter>().FirstOrDefault() is ScoreCounter counter) {
             counter.AddBonus(score, color, null, stacks);
-        }
-        else {
-            CurrentCycleScore += score;
         }
     }
 
@@ -149,6 +161,8 @@ sealed class Plugin : BaseUnityPlugin
 
     public void OnEnable()
     {
+        On.RainWorld.OnModsInit += RainWorld_OnModsInit;
+
         // -- Real-time score tracking --
         On.HUD.HUD.InitSinglePlayerHud += HUD_InitSinglePlayerHud;
 
@@ -174,6 +188,13 @@ sealed class Plugin : BaseUnityPlugin
         On.Menu.StoryGameStatisticsScreen.AddBkgIllustration += StoryGameStatisticsScreen_AddBkgIllustration;
     }
 
+    private void RainWorld_OnModsInit(On.RainWorld.orig_OnModsInit orig, RainWorld self)
+    {
+        orig(self);
+
+        MachineConnector.SetRegisteredOI("score-galore", new Options());
+    }
+
     private void HUD_InitSinglePlayerHud(On.HUD.HUD.orig_InitSinglePlayerHud orig, HUD.HUD self, RoomCamera cam)
     {
         orig(self, cam);
@@ -182,9 +203,11 @@ sealed class Plugin : BaseUnityPlugin
             CurrentCycleScore = 10;
             CurrentAverageScore = GetAverageScore(self.rainWorld.progression.currentSaveState);
 
-            self.AddPart(new ScoreCounter(self) {
-                Score = CurrentCycleScore,
-            });
+            if (Options.ShowRealTime.Value) {
+                self.AddPart(new ScoreCounter(self) {
+                    DisplayedScore = CurrentCycleScore,
+                });
+            }
         }
     }
 
@@ -195,7 +218,7 @@ sealed class Plugin : BaseUnityPlugin
         if (killer is Player && self.room.game.IsStorySession) {
             IconSymbol.IconSymbolData icon = CreatureSymbol.SymbolDataFromCreature(victim.abstractCreature);
 
-            AddCurrentCycleScore(self.room.game, KillScore(icon), icon);
+            AddCurrentCycleScore(self.room.game, KillScore(icon), icon, delay: (int)(Options.KillDelay.Value * 40));
         }
     }
 
@@ -350,6 +373,10 @@ sealed class Plugin : BaseUnityPlugin
     private void SleepAndDeathScreen_GetDataFromGame(On.Menu.SleepAndDeathScreen.orig_GetDataFromGame orig, SleepAndDeathScreen self, KarmaLadderScreen.SleepDeathScreenDataPackage package)
     {
         orig(self, package);
+
+        if (!Options.ShowSleepScreen.Value) {
+            return;
+        }
 
         int tokens = self.endgameTokens?.tokens.Count ?? 0;
 

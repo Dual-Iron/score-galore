@@ -15,18 +15,24 @@ sealed class ScoreCounter : HUD.HudPart
         public int Add;
         public bool Stacks;
         public Color Color;
+        public int Delay;
 
         public FLabel label;
         public IconSymbol symbol;
     }
-
-    public int Score {
-        get => Plugin.CurrentCycleScore;
-        set => Plugin.CurrentCycleScore = value;
+    sealed class DelayedKillBonus
+    {
+        public int Score;
+        public Color Color;
+        public IconSymbol.IconSymbolData Icon;
+        public int Delay;
     }
+
+    public int DisplayedScore;
     public int TargetScore => Plugin.CurrentAverageScore;
 
     readonly List<ScoreBonus> bonuses = new();
+    readonly List<DelayedKillBonus> delayedBonuses = new();
     readonly FLabel scoreText;
     readonly FSprite darkGradient;
     readonly FSprite lightGradient;
@@ -69,6 +75,13 @@ sealed class ScoreCounter : HUD.HudPart
         bonuses.RemoveAt(0);
     }
 
+    public void AddBonus(int score, Color color, IconSymbol.IconSymbolData icon, int delay)
+    {
+        delayedBonuses.Add(new() {
+            Score = score, Color = color, Icon = icon, Delay = delay
+        });
+    }
+
     public void AddBonus(int score, Color color, IconSymbol.IconSymbolData? icon, bool stacks)
     {
         incrementDelay = 0;
@@ -106,6 +119,21 @@ sealed class ScoreCounter : HUD.HudPart
 
         clock++;
 
+        // Add delayed kill scores
+        if (delayedBonuses.Count > 0) {
+            for (int i = delayedBonuses.Count - 1; i >= 0; i--) {
+                var bonus = delayedBonuses[i];
+
+                bonus.Delay -= 1;
+
+                if (bonus.Delay < 0) {
+                    delayedBonuses.RemoveAt(i);
+                    AddBonus(bonus.Score, bonus.Color, bonus.Icon, stacks: false);
+                }
+            }
+        }
+
+        // Update bonuses
         if (bonuses.Count > 0) {
             alpha = Custom.LerpAndTick(alpha, 1f, 1f/17f, 1f/30f);
 
@@ -118,6 +146,11 @@ sealed class ScoreCounter : HUD.HudPart
             incrementCounter = 0;
         }
 
+        // Fix score if it's somehow incorrect
+        if (bonuses.Count == 0 && delayedBonuses.Count == 0 && DisplayedScore != Plugin.CurrentCycleScore) {
+            DisplayedScore += Math.Sign(Plugin.CurrentCycleScore - DisplayedScore);
+        }
+
         if (hud.owner.RevealMap) {
             remainVisible = Math.Max(remainVisible, 10);
         }
@@ -125,8 +158,8 @@ sealed class ScoreCounter : HUD.HudPart
             remainVisible--;
         }
 
-        if (scoreText.text != Score.ToString()) {
-            scoreText.text = Score.ToString();
+        if (scoreText.text != DisplayedScore.ToString()) {
+            scoreText.text = DisplayedScore.ToString();
         }
     }
 
@@ -150,7 +183,7 @@ sealed class ScoreCounter : HUD.HudPart
 
         int add = Math.Sign(bonus.Add);
 
-        Score += add;
+        DisplayedScore += add;
 
         bonus.Add -= add;
         if (bonus.Add == 0) {
@@ -162,8 +195,8 @@ sealed class ScoreCounter : HUD.HudPart
     {
         base.Draw(timeStacker);
 
-        scoreText.color = Plugin.ScoreTextColor(Score, TargetScore);
-        lightGradient.color = Plugin.ScoreTextColor(Score, TargetScore);
+        scoreText.color = Plugin.ScoreTextColor(DisplayedScore, TargetScore);
+        lightGradient.color = Plugin.ScoreTextColor(DisplayedScore, TargetScore);
 
         Vector2 pos = Vector2.Lerp(lastPos, this.pos, timeStacker);
         scoreText.x = pos.x;
